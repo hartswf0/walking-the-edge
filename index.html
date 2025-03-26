@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Walking the Edge of the Frame</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            overflow: hidden;
+            font-family: Helvetica, Arial, sans-serif;
+            color: white;
+        }
+        
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #text-overlay {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-weight: bold;
+            font-size: min(2.5vw, 36px);
+            opacity: 0;
+            transition: opacity 2s;
+            max-width: 90%;
+            text-shadow: 0 0 10px rgba(0,0,0,0.8);
+            z-index: 10;
+            padding: 20px;
+        }
+        
+        #timer {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.3);
+            z-index: 100;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        #start-experience, #back-button {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 200;
+            background-color: rgba(0,0,0,0.7);
+            border: 2px solid rgba(255,255,255,0.5);
+            color: white;
+            padding: 15px 30px;
+            font-size: min(5vw, 36px);
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: Helvetica, Arial, sans-serif;
+            backdrop-filter: blur(5px);
+        }
+        
+        #start-experience:hover, #back-button:hover {
+            background-color: rgba(40,40,40,0.8);
+            border-color: white;
+        }
+        
+        #audio-controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 10px 20px;
+            background-color: rgba(0,0,0,0.7);
+            border-radius: 50px;
+            backdrop-filter: blur(5px);
+        }
+        
+        #audio-controls button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 8px 20px;
+            border-radius: 50px;
+            background-color: rgba(255,255,255,0.2);
+            transition: all 0.3s ease;
+        }
+        
+        #audio-controls button:hover {
+            background-color: rgba(255,255,255,0.3);
+        }
+        
+        #volume-slider {
+            width: 100px;
+            height: 8px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255,255,255,0.2);
+            border-radius: 5px;
+            outline: none;
+        }
+        
+        #volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+        }
+        
+        #volume-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            border: none;
+        }
+        
+        @media (max-width: 768px) {
+            #text-overlay {
+                font-size: 5vw;
+                bottom: 15vh;
+                width: 90%;
+                max-width: 100%;
+            }
+            
+            #timer {
+                top: 10px;
+                right: 10px;
+                font-size: 12px;
+                padding: 3px 8px;
+            }
+            
+            #audio-controls {
+                bottom: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 90%;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+                padding: 10px 0;
+            }
+            
+            #volume-slider {
+                width: 80%;
+            }
+            
+            #start-experience, #back-button {
+                padding: 12px 24px;
+                font-size: 5vw;
+                width: 80%;
+                text-align: center;
+            }
+        }
+        
+        /* Accessibility Improvements */
+        #start-experience, #back-button, #play-pause {
+            box-shadow: 0 0 15px rgba(255,255,255,0.3);
+            outline: none;
+        }
+        
+        #start-experience:focus, #back-button:focus, #play-pause:focus {
+            box-shadow: 0 0 15px rgba(255,255,255,0.7);
+            border-color: white;
+        }
+        
+        /* Improve visibility of volume control */
+        #volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+        }
+        
+        #volume-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+        }
+        
+        /* Higher Floor Volume */
+        #volume-slider {
+            background: linear-gradient(to right, rgba(255,255,255,0.7), rgba(255,255,255,0.2));
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container">
+        <canvas id="animation-canvas"></canvas>
+    </div>
+    <div id="text-overlay"></div>
+    <div id="timer">00:00 / 03:16</div>
+    
+    <!-- Start experience button -->
+    <button id="start-experience">BEGIN WALKING THE EDGE</button>
+    
+    <!-- Back button (initially hidden) -->
+    <button id="back-button" style="display: none;">RETURN TO START</button>
+    
+    <!-- Audio controls -->
+    <div id="audio-controls" style="display: none;">
+        <button id="play-pause" aria-label="Pause audio">Pause</button>
+        <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="0.9" aria-label="Volume control">
+    </div>
+    
+    <!-- SoundCloud iframe -->
+    <iframe id="soundcloud-player" width="0" height="0" scrolling="no" frameborder="no" allow="autoplay" 
+        src="https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/veritusvirtualis/walking-the-edge-of-the-frame&color=%23000000&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false">
+    </iframe>
+
+    <script src="https://w.soundcloud.com/player/api.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Canvas setup
+            const canvas = document.getElementById('animation-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            // Text overlay
+            const textOverlay = document.getElementById('text-overlay');
+            const timerDisplay = document.getElementById('timer');
+            
+            // Animation timing (3:16 = 196 seconds)
+            const TOTAL_DURATION = 196; // seconds
+            const FADE_DURATION = 2; // seconds for text fade in/out
+            
+            // Animation state
+            let startTime = null;
+            let currentTime = 0;
+            let currentScene = 0;
+            let textVisible = false;
+            let animationStarted = false;
+            let animationId = null;
+            
+            // Scene definitions
+            const scenes = [
+                {
+                    name: "Walking Agent",
+                    startTime: 0,
+                    text: "Walking the edge of the frame, we get at the walls you never notice.",
+                    draw: (ctx, progress, width, height) => {
+                        // Clear for this frame
+                        ctx.fillStyle = 'black';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        
+                        // Draw grid elements that fade in as walker progresses
+                        const gridOpacity = Math.min(1, progress * 3);
+                        const gridSize = 50;
+                        
+                        if (progress > 0.3) { // Start showing grid after walker has moved a bit
+                            ctx.strokeStyle = `rgba(255, 255, 255, ${gridOpacity * 0.2})`;
+                            ctx.lineWidth = 1;
+                            
+                            // Vertical lines
+                            for (let x = 0; x < width; x += gridSize) {
+                                ctx.beginPath();
+                                ctx.moveTo(x, 0);
+                                ctx.lineTo(x, height);
+                                ctx.stroke();
+                            }
+                            
+                            // Horizontal lines
+                            for (let y = 0; y < height; y += gridSize) {
+                                ctx.beginPath();
+                                ctx.moveTo(0, y);
+                                ctx.lineTo(width, y);
+                                ctx.stroke();
+                            }
+                        }
+                        
+                        // Geometric agent walking along the edge of a frame
+                        const centerX = width / 2;
+                        const centerY = height / 2;
+                        const frameSize = Math.min(width, height) * 0.6;
+                        
+                        // Draw frame
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(
+                            centerX - frameSize/2,
+                            centerY - frameSize/2,
+                            frameSize,
+                            frameSize
+                        );
+                        
+                        // Calculate agent position (walking along the frame edge)
+                        // Slow down the agent movement to 1/3 of original speed
+                        const slowedProgress = progress * 0.33;
+                        const totalPathLength = frameSize * 4; // Perimeter
+                        const distance = slowedProgress * totalPathLength;
+                        let x, y;
+                        const halfSize = frameSize / 2;
+                        
+                        if (distance < frameSize) {
+                            // Top edge
+                            x = centerX - halfSize + distance;
+                            y = centerY - halfSize;
+                        } else if (distance < frameSize * 2) {
+                            // Right edge
+                            x = centerX + halfSize;
+                            y = centerY - halfSize + (distance - frameSize);
+                        } else if (distance < frameSize * 3) {
+                            // Bottom edge
+                            x = centerX + halfSize - (distance - frameSize * 2);
+                            y = centerY + halfSize;
+                        } else {
+                            // Left edge
+                            x = centerX - halfSize;
+                            y = centerY + halfSize - (distance - frameSize * 3);
+                        }
+                        
+                        // Draw agent as a geometric shape (triangle)
+                        const agentSize = Math.min(width, height) * 0.03;
+                        const walkingAngle = slowedProgress * Math.PI * 8; // Slower oscillation for walking effect
+                        const legOffset = Math.sin(walkingAngle) * agentSize * 0.5;
+                        
+                        // Draw body
+                        ctx.fillStyle = 'white';
+                        ctx.beginPath();
+                        ctx.arc(x, y - agentSize * 0.5, agentSize * 0.6, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        // Draw legs with walking animation
+                        ctx.strokeStyle = 'white';
+                        ctx.lineWidth = 3;
+                        
+                        // Left leg
+                        ctx.beginPath();
+                        ctx.moveTo(x - agentSize * 0.3, y - agentSize * 0.2);
+                        ctx.lineTo(x - agentSize * 0.5, y + agentSize + legOffset);
+                        ctx.stroke();
+                        
+                        // Right leg
+                        ctx.beginPath();
+                        ctx.moveTo(x + agentSize * 0.3, y - agentSize * 0.2);
+                        ctx.lineTo(x + agentSize * 0.5, y + agentSize - legOffset);
+                        ctx.stroke();
+                        
+                        // Draw arms
+                        ctx.beginPath();
+                        ctx.moveTo(x - agentSize * 0.3, y - agentSize * 0.4);
+                        ctx.lineTo(x - agentSize * 0.7, y - agentSize * 0.2 + legOffset * 0.7);
+                        ctx.stroke();
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(x + agentSize * 0.3, y - agentSize * 0.4);
+                        ctx.lineTo(x + agentSize * 0.7, y - agentSize * 0.2 - legOffset * 0.7);
+                        ctx.stroke();
+                    }
+                },
+                {
+                    name: "Grid Awakening",
+                    startTime: 6,
+                    text: "What defines the space of my awareness? What lines am I not crossing simply because they feel like air?",
+                    draw: (ctx, progress, width, height) => {
+                        // Simple grid animation
+                        const gridSize = 50;
+                        const opacity = 0.2 + 0.3 * Math.sin(progress * Math.PI);
+                        
+                        ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+                        ctx.lineWidth = 1;
+                        
+                        // Vertical lines
+                        for (let x = 0; x < width; x += gridSize) {
+                            ctx.beginPath();
+                            ctx.moveTo(x, 0);
+                            ctx.lineTo(x, height);
+                            ctx.stroke();
+                        }
+                        
+                        // Horizontal lines
+                        for (let y = 0; y < height; y += gridSize) {
+                            ctx.beginPath();
+                            ctx.moveTo(0, y);
+                            ctx.lineTo(width, y);
+                            ctx.stroke();
+                        }
+                    }
+                },
+                {
+                    name: "Architectural Prison",
+                    startTime: 20,
+                    text: "Feel the grid, the habits, be false. The architecture was inherited, she could live in. May call the space a dimensional prison. It does not lock a chain. It locks with assumptions.",
+                    draw: (ctx, progress, width, height) => {
+                        // Pulsating circle
+                        const centerX = width / 2;
+                        const centerY = height / 2;
+                        const maxRadius = Math.min(width, height) * 0.4;
+                        const radius = maxRadius * (0.5 + 0.5 * Math.sin(progress * Math.PI * 2));
+                        
+                        ctx.beginPath();
+                        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+                },
+                {
+                    name: "Perceptual Constraint",
+                    startTime: 37,
+                    text: "Now bring your attention to how you perceive. Not because it's hidden, but because it was never coded to be your sensorium. This is your perceptual constraint. The membrane between possible and impossible, let it show itself.",
+                    draw: (ctx, progress, width, height) => {
+                        // Rotating lines
+                        const centerX = width / 2;
+                        const centerY = height / 2;
+                        const radius = Math.min(width, height) * 0.4;
+                        const numLines = 24;
+                        const rotation = progress * Math.PI;
+                        
+                        ctx.strokeStyle = 'white';
+                        ctx.lineWidth = 2;
+                        
+                        for (let i = 0; i < numLines; i++) {
+                            const angle = (i / numLines) * Math.PI * 2 + rotation;
+                            const x1 = centerX + Math.cos(angle) * radius * 0.5;
+                            const y1 = centerY + Math.sin(angle) * radius * 0.5;
+                            const x2 = centerX + Math.cos(angle) * radius;
+                            const y2 = centerY + Math.sin(angle) * radius;
+                            
+                            ctx.beginPath();
+                            ctx.moveTo(x1, y1);
+                            ctx.lineTo(x2, y2);
+                            ctx.stroke();
+                        }
+                    }
+                },
+                {
+                    name: "Cognitive Framework",
+                    startTime: 59,
+                    text: "Now observe your thoughts, not their content, but their shape. What questions you will not ask because the architecture of your mind never built this scaffolding for them. This is your cognitive framework. It organizes the reality, and it hides the alternative.",
+                    draw: (ctx, progress, width, height) => {
+                        // Fragmented squares
+                        const centerX = width / 2;
+                        const centerY = height / 2;
+                        const size = Math.min(width, height) * 0.4;
+                        const fragmentSize = 20;
+                        const fragmentDisplacement = size * 0.5 * progress;
+                        
+                        for (let x = -size/2; x < size/2; x += fragmentSize) {
+                            for (let y = -size/2; y < size/2; y += fragmentSize) {
+                                const distFromCenter = Math.sqrt(x*x + y*y) / (size/2);
+                                const displacement = fragmentDisplacement * distFromCenter;
+                                const direction = Math.atan2(y, x);
+                                
+                                const dx = displacement * Math.cos(direction);
+                                const dy = displacement * Math.sin(direction);
+                                
+                                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                                ctx.fillRect(
+                                    centerX + x + dx, 
+                                    centerY + y + dy, 
+                                    fragmentSize, 
+                                    fragmentSize
+                                );
+                            }
+                        }
+                    }
+                },
+                {
+                    name: "Normative Forces",
+                    startTime: 85,
+                    text: "Now feel your positioning. Who must you be to be accepted? What parts of you we will perform? These are normative forces. They structure reality with invisible levers.",
+                    draw: (ctx, progress, width, height) => {
+                        // Spiral animation
+                        const centerX = width / 2;
+                        const centerY = height / 2;
+                        const maxRadius = Math.min(width, height) * 0.4;
+                        const spiralLength = 10 * Math.PI;
+                        const pathSteps = 500;
+                        
+                        ctx.beginPath();
+                        for (let i = 0; i <= pathSteps; i++) {
+                            const t = i / pathSteps;
+                            const r = maxRadius * t * (0.1 + 0.9 * progress);
+                            const theta = spiralLength * t + progress * Math.PI * 4;
+                            
+                            const x = centerX + r * Math.cos(theta);
+                            const y = centerY + r * Math.sin(theta);
+                            
+                            if (i === 0) {
+                                ctx.moveTo(x, y);
+                            } else {
+                                ctx.lineTo(x, y);
+                            }
+                        }
+                        
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+                },
+                {
+                    name: "Dimensional Transcendence",
+                    startTime: 107,
+                    text: "Now, invite the fracture. What happens if the frame fails if your cognitive architecture? The end. This is dimensional transcendence. It may feel like madness or liberation or both.",
+                    draw: (ctx, progress, width, height) => {
+                        // Radial symmetry
+                        const centerX = width / 2;
+                        const centerY = height / 2;
+                        const radius = Math.min(width, height) * 0.4;
+                        const numShapes = 8;
+                        const innerRadius = radius * 0.5;
+                        const rotation = progress * Math.PI * 2;
+                        
+                        for (let i = 0; i < numShapes; i++) {
+                            const angle = (i / numShapes) * Math.PI * 2 + rotation;
+                            const x = centerX + Math.cos(angle) * innerRadius;
+                            const y = centerY + Math.sin(angle) * radius;
+                            
+                            ctx.fillStyle = i % 2 === 0 ? 'white' : 'rgba(200, 0, 0, 0.8)';
+                            
+                            ctx.beginPath();
+                            ctx.moveTo(x, y);
+                            ctx.arc(x, y, radius * 0.2, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
+                },
+                {
+                    name: "Mystical Experience",
+                    startTime: 126,
+                    text: "Sometimes it's called missical experience. Feel now the presence of another. Can you feel it? Not imagine. Not modeled, but inhabited.",
+                    draw: (ctx, progress, width, height) => {
+                        // Interference patterns
+                        const centerX = width / 2;
+                        const centerY = height / 2;
+                        const size = Math.min(width, height) * 0.8;
+                        
+                        for (let i = 0; i < 30; i++) {
+                            const wave1 = Math.sin((i / 30) * Math.PI * 10 + progress * Math.PI * 4);
+                            const wave2 = Math.sin((i / 30) * Math.PI * 8 - progress * Math.PI * 3);
+                            const interference = wave1 * wave2;
+                            
+                            const y = centerY - size/2 + i * (size / 30);
+                            const lineWidth = Math.abs(interference) * 10 + 1;
+                            
+                            ctx.beginPath();
+                            ctx.moveTo(centerX - size/2, y);
+                            ctx.lineTo(centerX + size/2, y);
+                            ctx.strokeStyle = interference > 0 ? 'rgba(255, 255, 255, 0.8)' : 'rgba(200, 0, 0, 0.8)';
+                            ctx.lineWidth = lineWidth;
+                            ctx.stroke();
+                        }
+                    }
+                },
+                {
+                    name: "Empathy",
+                    startTime: 143,
+                    text: "This is his imagine of empathy. It bridges perceptual constraints. And in the space between frames, something emerges.",
+                    draw: (ctx, progress, width, height) => {
+                        // Flowing particles
+                        const numParticles = 200;
+                        const particleSize = 3;
+                        const flowSpeed = progress * 2;
+                        
+                        for (let i = 0; i < numParticles; i++) {
+                            const t = i / numParticles;
+                            const noiseX = Math.sin(t * 10) * Math.cos(t * 5);
+                            const noiseY = Math.cos(t * 7) * Math.sin(t * 13);
+                            
+                            const x = width * (0.2 + 0.6 * (t + noiseX * 0.2 + flowSpeed) % 1);
+                            const y = height * 0.5 + height * 0.3 * noiseY;
+                            
+                            ctx.beginPath();
+                            ctx.arc(x, y, particleSize, 0, Math.PI * 2);
+                            ctx.fillStyle = 'white';
+                            ctx.fill();
+                        }
+                    }
+                },
+                {
+                    name: "Emergent Means",
+                    startTime: 157,
+                    text: "This is his emergent means. It's not intended, it rises. Now step back. Look again at your prison.",
+                    draw: (ctx, progress, width, height) => {
+                        // Dimensional rupture
+                        const centerX = width / 2;
+                        const centerY = height / 2;
+                        const baseRadius = Math.min(width, height) * 0.3;
+                        const ruptureStrength = progress * 1.5;
+                        
+                        // Draw circular boundary
+                        ctx.beginPath();
+                        ctx.arc(centerX, centerY, baseRadius, 0, Math.PI * 2);
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                        
+                        // Draw rupture
+                        ctx.beginPath();
+                        for (let angle = 0; angle < Math.PI * 2; angle += 0.05) {
+                            const noise = Math.sin(angle * 5) * Math.cos(angle * 3) * Math.sin(angle * 8);
+                            const ruptureFactor = 1 + noise * ruptureStrength;
+                            const radius = baseRadius * ruptureFactor;
+                            
+                            const x = centerX + Math.cos(angle) * radius;
+                            const y = centerY + Math.sin(angle) * radius;
+                            
+                            if (angle === 0) {
+                                ctx.moveTo(x, y);
+                            } else {
+                                ctx.lineTo(x, y);
+                            }
+                        }
+                        
+                        ctx.closePath();
+                        ctx.strokeStyle = 'rgba(200, 0, 0, 0.8)';
+                        ctx.lineWidth = 3;
+                        ctx.stroke();
+                    }
+                },
+                {
+                    name: "Self-Reinforced Loop",
+                    startTime: 171,
+                    text: "Your perceptions, your frameworks, your heart arcs. The loop is self-reinformed. Now it's visible.",
+                    draw: (ctx, progress, width, height) => {
+                        // Expanding horizon
+                        const centerX = width / 2;
+                        const centerY = height / 2;
+                        const numHorizons = 5;
+                        const maxRadius = Math.min(width, height) * 0.8;
+                        
+                        for (let i = 0; i < numHorizons; i++) {
+                            const t = i / numHorizons;
+                            const radius = maxRadius * t * (0.5 + 0.5 * progress);
+                            const opacity = 0.8 - t * 0.6;
+                            
+                            ctx.beginPath();
+                            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                            ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+                            ctx.lineWidth = 2;
+                            ctx.stroke();
+                        }
+                    }
+                },
+                {
+                    name: "Final Release",
+                    startTime: 185,
+                    text: "Read in. Hold. Release. Welcome back.",
+                    draw: (ctx, progress, width, height) => {
+                        // Complex Integration - interconnected nodes dissolving to final stillness
+                        const centerX = width / 2;
+                        const centerY = height / 2;
+                        const radius = Math.min(width, height) * 0.3;
+                        const numNodes = 12;
+                        const finalProgress = Math.max(0, 1 - progress * 2); // Nodes disappear in second half
+                        
+                        if (finalProgress > 0) {
+                            // Draw nodes
+                            for (let i = 0; i < numNodes; i++) {
+                                const angle = (i / numNodes) * Math.PI * 2;
+                                const x = centerX + Math.cos(angle) * radius;
+                                const y = centerY + Math.sin(angle) * radius;
+                                
+                                ctx.beginPath();
+                                ctx.arc(x, y, 5 * finalProgress, 0, Math.PI * 2);
+                                ctx.fillStyle = 'white';
+                                ctx.fill();
+                                
+                                // Draw connections
+                                const connections = Math.floor(finalProgress * numNodes);
+                                
+                                for (let j = 1; j <= connections; j++) {
+                                    const targetIndex = (i + j) % numNodes;
+                                    const targetAngle = (targetIndex / numNodes) * Math.PI * 2;
+                                    const targetX = centerX + Math.cos(targetAngle) * radius;
+                                    const targetY = centerY + Math.sin(targetAngle) * radius;
+                                    
+                                    ctx.beginPath();
+                                    ctx.moveTo(x, y);
+                                    ctx.lineTo(targetX, targetY);
+                                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 * finalProgress})`;
+                                    ctx.lineWidth = 1;
+                                    ctx.stroke();
+                                }
+                            }
+                        }
+                        
+                        // Final white circle that appears and then fades
+                        if (progress > 0.5) {
+                            const finalFade = Math.max(0, 1 - (progress - 0.5) * 2);
+                            ctx.beginPath();
+                            ctx.arc(centerX, centerY, radius * 0.5, 0, Math.PI * 2);
+                            ctx.fillStyle = `rgba(255, 255, 255, ${finalFade})`;
+                            ctx.fill();
+                        }
+                    }
+                }
+            ];
+            
+            // Format time as MM:SS
+            function formatTime(seconds) {
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+            
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            });
+            
+            // Display text with fade effect
+            function displayText(text) {
+                textOverlay.textContent = text;
+                textOverlay.style.opacity = 1;
+                textVisible = true;
+            }
+            
+            function hideText() {
+                textOverlay.style.opacity = 0;
+                textVisible = false;
+            }
+            
+            // Audio controls
+            const playPauseButton = document.getElementById('play-pause');
+            const volumeSlider = document.getElementById('volume-slider');
+            let isPlaying = false;
+            
+            // Initialize SoundCloud player
+            const widget = SC.Widget(document.getElementById('soundcloud-player'));
+            
+            // Play/pause button click handler
+            playPauseButton.addEventListener('click', () => {
+                if (isPlaying) {
+                    widget.pause();
+                    playPauseButton.textContent = 'Play';
+                    // Pause animation if it's running
+                    if (animationId) {
+                        cancelAnimationFrame(animationId);
+                    }
+                } else {
+                    widget.play();
+                    playPauseButton.textContent = 'Pause';
+                    // Only start animation if it hasn't been started before
+                    if (!animationStarted) {
+                        startAnimation();
+                    } else {
+                        // Resume animation
+                        animationId = requestAnimationFrame(animate);
+                    }
+                }
+                isPlaying = !isPlaying;
+            });
+            
+            // Volume slider change handler
+            volumeSlider.addEventListener('input', () => {
+                widget.setVolume(volumeSlider.value);
+            });
+            
+            // SoundCloud widget events
+            widget.bind(SC.Widget.Events.READY, () => {
+                // Set initial volume
+                widget.setVolume(0.9);
+                
+                // Auto-start when fully loaded
+                widget.bind(SC.Widget.Events.PLAY, () => {
+                    playPauseButton.textContent = 'Pause';
+                    isPlaying = true;
+                    
+                    // Start animation if not already started
+                    if (!animationStarted) {
+                        startAnimation();
+                    }
+                });
+                
+                widget.bind(SC.Widget.Events.PAUSE, () => {
+                    playPauseButton.textContent = 'Play';
+                    isPlaying = false;
+                    
+                    // Pause animation
+                    if (animationId) {
+                        cancelAnimationFrame(animationId);
+                    }
+                });
+                
+                widget.bind(SC.Widget.Events.FINISH, () => {
+                    playPauseButton.textContent = 'Play';
+                    isPlaying = false;
+                    
+                    // Stop animation
+                    if (animationId) {
+                        cancelAnimationFrame(animationId);
+                    }
+                });
+            });
+            
+            // Animation loop
+            function animate(timestamp) {
+                if (!startTime) startTime = timestamp;
+                
+                // Calculate elapsed time in seconds
+                currentTime = (timestamp - startTime) / 1000;
+                
+                // Update timer display
+                timerDisplay.textContent = `${formatTime(currentTime)} / 03:16`;
+                
+                // Check if animation is complete
+                if (currentTime >= TOTAL_DURATION) {
+                    // Animation finished, show back button
+                    document.getElementById('back-button').style.display = 'block';
+                    return;
+                }
+                
+                // Get current position from SoundCloud to keep in sync (uncomment if needed)
+                /* widget.getPosition(position => {
+                    const positionInSeconds = position / 1000;
+                    // If audio and animation are out of sync by more than 0.5 seconds
+                    if (Math.abs(positionInSeconds - currentTime) > 0.5) {
+                        currentTime = positionInSeconds;
+                        startTime = timestamp - (currentTime * 1000);
+                    }
+                }); */
+                
+                // Determine current scene
+                let newScene = 0;
+                for (let i = 0; i < scenes.length; i++) {
+                    if (currentTime >= scenes[i].startTime && (i === scenes.length - 1 || currentTime < scenes[i + 1].startTime)) {
+                        newScene = i;
+                        break;
+                    }
+                }
+                
+                const scene = scenes[newScene];
+                const sceneStartTime = scene.startTime;
+                const sceneProgress = (currentTime - sceneStartTime) / (scenes[newScene + 1] ? scenes[newScene + 1].startTime - sceneStartTime : TOTAL_DURATION - sceneStartTime); // 0-1 progress within scene
+                
+                // Scene transition logic
+                if (newScene !== currentScene) {
+                    currentScene = newScene;
+                    hideText();
+                    
+                    // Schedule text to appear after a delay
+                    setTimeout(() => {
+                        displayText(scene.text);
+                    }, 1000);
+                }
+                
+                // Text fade logic - fade out before scene ends
+                const timeUntilNextScene = (scenes[newScene + 1] ? scenes[newScene + 1].startTime : TOTAL_DURATION) - currentTime;
+                if (textVisible && timeUntilNextScene < FADE_DURATION) {
+                    hideText();
+                }
+                
+                // Clear canvas
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw current scene
+                scene.draw(ctx, sceneProgress, canvas.width, canvas.height);
+                
+                // Continue animation
+                animationId = requestAnimationFrame(animate);
+            }
+            
+            // Start animation and audio together
+            function startAnimation() {
+                animationStarted = true;
+                startTime = null;
+                currentTime = 0;
+                animationId = requestAnimationFrame(animate);
+            }
+            
+            // Start experience button click handler
+            document.getElementById('start-experience').addEventListener('click', () => {
+                document.getElementById('start-experience').style.display = 'none';
+                document.getElementById('audio-controls').style.display = 'flex';
+                widget.play();
+                startAnimation();
+            });
+            
+            // Back button click handler
+            document.getElementById('back-button').addEventListener('click', () => {
+                // Reset the experience
+                document.getElementById('back-button').style.display = 'none';
+                document.getElementById('start-experience').style.display = 'block';
+                
+                // Stop audio
+                widget.pause();
+                widget.seekTo(0);
+                
+                // Reset animation state
+                startTime = null;
+                currentTime = 0;
+                currentScene = 0;
+                animationStarted = false;
+                
+                // Clear canvas
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Reset text
+                hideText();
+            });
+        });
+    </script>
+</body>
+</html>
